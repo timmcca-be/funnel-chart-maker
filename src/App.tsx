@@ -23,11 +23,8 @@ function getColor(absoluteProportion: number, gradientBase: number): string {
 }
 
 type DataPoint =
+    | "blank"
     | {
-          type: "blank";
-      }
-    | {
-          type: "step";
           name: string;
           count: number;
       };
@@ -40,36 +37,24 @@ function parseData(rawJson: string): { error: string } | { data: DataPoint[] } {
         }
         for (let i = 0; i < result.length; i++) {
             const dataPoint = result[i];
+            if (dataPoint === "blank") {
+                continue;
+            }
             if (dataPoint == null) {
                 return { error: `null at index ${i}` };
             }
             if (typeof dataPoint !== "object") {
-                return { error: `not an object at index ${i}` };
+                return { error: `not "blank" or an object at index ${i}` };
             }
-            switch (dataPoint.type) {
-                case "blank":
-                    break;
-                case "step":
-                    if (typeof dataPoint.name !== "string") {
-                        return {
-                            error: `step name not a string at index ${i}`,
-                        };
-                    }
-                    if (typeof dataPoint.count !== "number") {
-                        return {
-                            error: `step count not a number at index ${i}`,
-                        };
-                    }
-                    break;
-                case null:
-                case undefined:
-                    return {
-                        error: `missing step type at index ${i}`,
-                    };
-                default:
-                    return {
-                        error: `invalid step type at index ${i}: ${dataPoint.type}`,
-                    };
+            if (typeof dataPoint.name !== "string") {
+                return {
+                    error: `step name not a string at index ${i}`,
+                };
+            }
+            if (typeof dataPoint.count !== "number") {
+                return {
+                    error: `step count not a number at index ${i}`,
+                };
             }
         }
 
@@ -80,11 +65,8 @@ function parseData(rawJson: string): { error: string } | { data: DataPoint[] } {
 }
 
 type AnnotatedDataPoint =
+    | "blank"
     | {
-          type: "blank";
-      }
-    | {
-          type: "step";
           name: string;
           count: number;
           padding: number;
@@ -96,7 +78,7 @@ function annotateData(data: DataPoint[]): AnnotatedDataPoint[] {
     let firstStepCount: number | null = null;
     let preceedingStepCount: number | null = null;
     return data.map((dataPoint) => {
-        if (dataPoint.type === "blank") {
+        if (dataPoint === "blank") {
             return dataPoint;
         }
         if (firstStepCount === null) {
@@ -123,13 +105,13 @@ function buildChartData(
 ): ChartData {
     return {
         labels: data.map((dataPoint) =>
-            dataPoint.type === "blank" ? "" : dataPoint.name
+            dataPoint === "blank" ? "" : dataPoint.name
         ),
         datasets: [
             {
                 label: "padding",
                 data: data.map((dataPoint) =>
-                    dataPoint.type === "blank" ? 0 : dataPoint.padding
+                    dataPoint === "blank" ? 0 : dataPoint.padding
                 ),
                 backgroundColor: "rgba(0, 0, 0, 0)",
                 datalabels: {
@@ -139,10 +121,10 @@ function buildChartData(
             {
                 label: "counts",
                 data: data.map((dataPoint) =>
-                    dataPoint.type === "blank" ? 0 : dataPoint.count
+                    dataPoint === "blank" ? 0 : dataPoint.count
                 ),
                 backgroundColor: data.map((dataPoint) =>
-                    dataPoint.type === "blank"
+                    dataPoint === "blank"
                         ? "white"
                         : getColor(dataPoint.absoluteProportion, gradientBase)
                 ),
@@ -156,7 +138,7 @@ function buildChartData(
                                 weight: "bold",
                             },
                             formatter: (value, { dataIndex }) =>
-                                data[dataIndex].type === "blank"
+                                data[dataIndex] === "blank"
                                     ? ""
                                     : `${value} users`,
                         },
@@ -170,7 +152,7 @@ function buildChartData(
                             },
                             formatter: (_, { dataIndex }) => {
                                 const dataPoint = data[dataIndex];
-                                return dataPoint.type === "blank"
+                                return dataPoint === "blank"
                                     ? ""
                                     : `${Math.round(
                                           dataPoint.absoluteProportion * 100
@@ -194,7 +176,7 @@ function buildChartData(
                             },
                             formatter: (_, { dataIndex }) => {
                                 const dataPoint = data[dataIndex];
-                                return dataPoint.type === "blank"
+                                return dataPoint === "blank"
                                     ? ""
                                     : dataPoint.name;
                             },
@@ -215,7 +197,7 @@ function buildChartOptions(data: AnnotatedDataPoint[]): ChartOptions {
                 stacked: true,
                 max: data
                     .map((dataPoint) =>
-                        dataPoint.type === "blank" ? 0 : dataPoint.count
+                        dataPoint === "blank" ? 0 : dataPoint.count
                     )
                     .find((count) => count > 0),
             },

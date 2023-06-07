@@ -3,14 +3,27 @@
 in the "raw json" section, enter a json array of objects matching this typescript type:
 
 ```
+| "blank"
 | {
-      type: "blank";
-  }
-| {
-      type: "step";
       name: string;
       count: number;
   }
+```
+
+e.g.
+
+```
+[
+    {
+        "name": "clicked 'get started'",
+        "count": 100
+    },
+    "blank",
+    {
+        "name": "clicked 'next'",
+        "count": 80
+    }
+]
 ```
 
 blanks just hold space, which is useful when comparing funnels with different numbers of steps.
