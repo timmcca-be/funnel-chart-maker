@@ -52,7 +52,7 @@ function getColor(absoluteProportion: number, gradientBase: number): string {
     return `rgb(${r}, ${g}, ${b})`;
 }
 
-type DataPoint =
+export type DataPoint =
     | "blank"
     | {
           name: string;
@@ -60,38 +60,50 @@ type DataPoint =
       };
 
 function parseData(rawJson: string): { error: string } | { data: DataPoint[] } {
+    let result: unknown;
     try {
-        const result = JSON.parse(rawJson);
-        if (!Array.isArray(result)) {
-            return { error: "not an array" };
-        }
-        for (let i = 0; i < result.length; i++) {
-            const dataPoint = result[i];
-            if (dataPoint === "blank") {
-                continue;
-            }
-            if (dataPoint == null) {
-                return { error: `null at index ${i}` };
-            }
-            if (typeof dataPoint !== "object") {
-                return { error: `not "blank" or an object at index ${i}` };
-            }
-            if (typeof dataPoint.name !== "string") {
-                return {
-                    error: `step name not a string at index ${i}`,
-                };
-            }
-            if (typeof dataPoint.count !== "number") {
-                return {
-                    error: `step count not a number at index ${i}`,
-                };
-            }
-        }
-
-        return { data: result };
+        result = JSON.parse(rawJson);
     } catch (e) {
         return { error: "invalid JSON" };
     }
+
+    if (!Array.isArray(result)) {
+        return { error: "not an array" };
+    }
+    for (let i = 0; i < result.length; i++) {
+        const dataPoint = result[i];
+        if (dataPoint === "blank") {
+            continue;
+        }
+        if (dataPoint == null) {
+            return { error: `null at index ${i}` };
+        }
+        if (typeof dataPoint !== "object") {
+            return { error: `not "blank" or an object at index ${i}` };
+        }
+        if (!("name" in dataPoint)) {
+            return {
+                error: `step name missing at index ${i}`,
+            };
+        }
+        if (typeof dataPoint.name !== "string") {
+            return {
+                error: `step name not a string at index ${i}`,
+            };
+        }
+        if (!("count" in dataPoint)) {
+            return {
+                error: `step count missing at index ${i}`,
+            };
+        }
+        if (typeof dataPoint.count !== "number") {
+            return {
+                error: `step count not a number at index ${i}`,
+            };
+        }
+    }
+
+    return { data: result };
 }
 
 type AnnotatedDataPoint =
@@ -150,6 +162,59 @@ function annotateData(data: DataPoint[]): AnnotatedDataPoint[] {
             relativeProportion,
         };
     });
+}
+
+function getTopOfFunnelCount(data: DataPoint[]): number {
+    return (
+        data
+            .map((dataPoint) => (dataPoint === "blank" ? 0 : dataPoint.count))
+            .find((count) => count > 0) ?? 0
+    );
+}
+
+export const exportedForTesting = {
+    parseData,
+    validateData,
+    annotateData,
+    getTopOfFunnelCount,
+};
+
+function createChartSvg(
+    options: {
+        width: number;
+        height: number;
+        gradientBase: number;
+    },
+    chartData: ChartData,
+    chartOptions: ChartOptions
+): string {
+    const svgContext = makeSvgContext({
+        width: options.width,
+        height: options.height,
+    });
+    const chart = new ChartJS(svgContext, {
+        type: "bar",
+        data: chartData,
+        options: {
+            ...chartOptions,
+            // these overrides are necessary to ensure chart.js plays nicely with svgcanvas
+            responsive: false,
+            animation: false,
+            events: [],
+        },
+    });
+    chart.draw();
+    return svgContext.getSerializedSvg(true);
+}
+
+function downloadSvg(data: string): void {
+    const blob = new Blob([data], { type: "image/svg+xml" });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "funnel.svg";
+    a.click();
+    window.URL.revokeObjectURL(url);
 }
 
 function buildChartData(
@@ -241,18 +306,14 @@ function buildChartData(
     };
 }
 
-function buildChartOptions(data: AnnotatedDataPoint[]): ChartOptions {
+function buildChartOptions(topOfFunnelCount: number): ChartOptions {
     return {
         indexAxis: "y",
         scales: {
             x: {
                 display: false,
                 stacked: true,
-                max: data
-                    .map((dataPoint) =>
-                        dataPoint === "blank" ? 0 : dataPoint.count
-                    )
-                    .find((count) => count > 0),
+                max: topOfFunnelCount,
             },
             y: {
                 display: false,
@@ -268,21 +329,9 @@ function buildChartOptions(data: AnnotatedDataPoint[]): ChartOptions {
             },
         },
         maintainAspectRatio: false,
-        // animation and events must be set to these values, or else the SVG download will break.
-        // if you change these, make sure you override them in the download button's onClick handler.
         animation: false,
         events: [],
     };
-}
-
-function downloadSvg(data: string): void {
-    const blob = new Blob([data], { type: "image/svg+xml" });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "funnel.svg";
-    a.click();
-    window.URL.revokeObjectURL(url);
 }
 
 const defaultJson = `[
@@ -327,7 +376,7 @@ export function App() {
         if ("error" in parseResult) {
             return null;
         }
-        return buildChartOptions(parseResult.data);
+        return buildChartOptions(getTopOfFunnelCount(parseResult.data));
     }, [parseResult]);
 
     return (
@@ -399,22 +448,16 @@ export function App() {
                 <>
                     <button
                         onClick={() => {
-                            const svgContext = makeSvgContext({
-                                width: validatedWidth,
-                                height: validatedHeight,
-                            });
-                            const chart = new ChartJS(svgContext, {
-                                type: "bar",
-                                data: chartData,
-                                options: {
-                                    ...chartOptions,
-                                    // must be false, or else the SVG download will break.
-                                    responsive: false,
+                            const chartSvg = createChartSvg(
+                                {
+                                    width: validatedWidth,
+                                    height: validatedHeight,
+                                    gradientBase: validatedGradientBase,
                                 },
-                            });
-                            chart.draw();
-                            const svg = svgContext.getSerializedSvg(true);
-                            downloadSvg(svg);
+                                chartData,
+                                chartOptions
+                            );
+                            downloadSvg(chartSvg);
                         }}
                         className={styles.downloadButton}
                     >
