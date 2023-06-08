@@ -111,6 +111,11 @@ function validateData(data: DataPoint[]): { error: string } | null {
         if (dataPoint === "blank") {
             continue;
         }
+        if (dataPoint.count < 0) {
+            return {
+                error: `step count at index ${i} is negative`,
+            };
+        }
         if (lastCount !== null && dataPoint.count > lastCount) {
             return {
                 error: `step count at index ${i} is greater than the previous step count`,
