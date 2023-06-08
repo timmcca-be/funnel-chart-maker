@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from "react";
+import React, { useMemo, useState } from "react";
 import "chart.js/auto";
 import { Chart as ChartJS } from "chart.js";
 import { Chart } from "react-chartjs-2";
@@ -224,7 +224,7 @@ export function App() {
     const [rawJson, setRawJson] = useState("");
     const [width, setWidth] = useState("1200");
     const [height, setHeight] = useState("600");
-    const validatedGradientBaseRef = useRef(0);
+    const [validatedGradientBase, setValidatedGradientBase] = useState(0);
     // 0 <= gradientBase < 1
     // this sets the "bottom" of the gradient. so if you want the gradient to
     // span 0.3 to 1, you'd set this to 0.3. set this a little below the lowest
@@ -237,6 +237,20 @@ export function App() {
         }
         return { data: annotateData(result.data) };
     }, [rawJson]);
+
+    const chartData = useMemo(() => {
+        if ("error" in parseResult) {
+            return null;
+        }
+        return buildChartData(parseResult.data, validatedGradientBase);
+    }, [parseResult, validatedGradientBase]);
+
+    const chartOptions = useMemo(() => {
+        if ("error" in parseResult) {
+            return null;
+        }
+        return buildChartOptions(parseResult.data);
+    }, [parseResult]);
 
     return (
         <div className={styles.app}>
@@ -284,23 +298,15 @@ export function App() {
                         setGradientBase(e.target.value);
                         const newValue = parseFloat(e.target.value);
                         if (!isNaN(newValue) && newValue >= 0 && newValue < 1) {
-                            validatedGradientBaseRef.current = newValue;
+                            setValidatedGradientBase(newValue);
                         }
                     }}
                 />
             </label>
-            {"error" in parseResult ? (
-                <p>{parseResult.error}</p>
-            ) : (
+            {"error" in parseResult && <p>{parseResult.error}</p>}
+            {chartData !== null && chartOptions !== null && (
                 <div style={{ width: `${width}px`, height: `${height}px` }}>
-                    <Chart
-                        type="bar"
-                        data={buildChartData(
-                            parseResult.data,
-                            validatedGradientBaseRef.current
-                        )}
-                        options={buildChartOptions(parseResult.data)}
-                    />
+                    <Chart type="bar" data={chartData} options={chartOptions} />
                 </div>
             )}
         </div>
