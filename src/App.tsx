@@ -244,11 +244,10 @@ function buildChartOptions(data: AnnotatedDataPoint[]): ChartOptions {
                 enabled: false,
             },
         },
-        // must be false, or else the SVG download will break.
-        // if you set this to true, make sure you override it to false in the
-        // "download as svg" button's click handler.
-        animation: false,
         maintainAspectRatio: false,
+        // animation and events must be set to these values, or else the SVG download will break.
+        // if you change these, make sure you override them in the download button's onClick handler.
+        animation: false,
         events: [],
     };
 }
