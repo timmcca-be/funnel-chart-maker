@@ -222,7 +222,9 @@ function buildChartOptions(data: AnnotatedDataPoint[]): ChartOptions {
 
 export function App() {
     const [rawJson, setRawJson] = useState("");
+    const [validatedWidth, setValidatedWidth] = useState(1200);
     const [width, setWidth] = useState("1200");
+    const [validatedHeight, setValidatedHeight] = useState(600);
     const [height, setHeight] = useState("600");
     const [validatedGradientBase, setValidatedGradientBase] = useState(0);
     // 0 <= gradientBase < 1
@@ -274,7 +276,13 @@ export function App() {
                     type="number"
                     value={width}
                     min={1}
-                    onChange={(e) => setWidth(e.target.value)}
+                    onChange={(e) => {
+                        setWidth(e.target.value);
+                        const newValue = parseInt(e.target.value);
+                        if (!isNaN(newValue) && newValue >= 1) {
+                            setValidatedWidth(newValue);
+                        }
+                    }}
                 />
             </label>
             <label>
@@ -283,7 +291,13 @@ export function App() {
                     type="number"
                     value={height}
                     min={1}
-                    onChange={(e) => setHeight(e.target.value)}
+                    onChange={(e) => {
+                        setHeight(e.target.value);
+                        const newValue = parseInt(e.target.value);
+                        if (!isNaN(newValue) && newValue >= 1) {
+                            setValidatedHeight(newValue);
+                        }
+                    }}
                 />
             </label>
             <label>
@@ -305,7 +319,7 @@ export function App() {
             </label>
             {"error" in parseResult && <p>{parseResult.error}</p>}
             {chartData !== null && chartOptions !== null && (
-                <div style={{ width: `${width}px`, height: `${height}px` }}>
+                <div style={{ width: validatedWidth, height: validatedHeight }}>
                     <Chart type="bar" data={chartData} options={chartOptions} />
                 </div>
             )}
