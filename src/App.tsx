@@ -104,6 +104,24 @@ type AnnotatedDataPoint =
           relativeProportion: number | null;
       };
 
+function validateData(data: DataPoint[]): { error: string } | null {
+    let lastCount = null;
+    for (let i = 0; i < data.length; i++) {
+        const dataPoint = data[i];
+        if (dataPoint === "blank") {
+            continue;
+        }
+        if (lastCount !== null && dataPoint.count > lastCount) {
+            return {
+                error: `step count at index ${i} is greater than the previous step count`,
+            };
+        }
+        lastCount = dataPoint.count;
+    }
+
+    return null;
+}
+
 function annotateData(data: DataPoint[]): AnnotatedDataPoint[] {
     let firstStepCount: number | null = null;
     let preceedingStepCount: number | null = null;
@@ -285,6 +303,10 @@ export function App() {
         const result = parseData(rawJson);
         if ("error" in result) {
             return result;
+        }
+        const validationResult = validateData(result.data);
+        if (validationResult !== null) {
+            return validationResult;
         }
         return { data: annotateData(result.data) };
     }, [rawJson]);
