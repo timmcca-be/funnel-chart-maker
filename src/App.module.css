@@ -6,6 +6,25 @@
   padding: 1rem;
 }
 
+.jsonInputLabel {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.jsonInput {
+  height: 10rem;
+  padding: 1rem;
+  border: 1px solid #ccc;
+  border-radius: 0.5rem;
+}
+
+.inputLabel {
+  display: flex;
+  flex-direction: row;
+  gap: 1rem;
+}
+
 .downloadButton {
   padding: 1rem;
 }

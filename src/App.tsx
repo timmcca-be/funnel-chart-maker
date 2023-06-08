@@ -263,8 +263,15 @@ function downloadSvg(data: string): void {
     window.URL.revokeObjectURL(url);
 }
 
+const defaultJson = `[
+    {"name": "did a thing", "count": 100},
+    {"name": "did another thing", "count": 80},
+    "blank",
+    {"name": "did something good", "count": 60}
+]`;
+
 export function App() {
-    const [rawJson, setRawJson] = useState("");
+    const [rawJson, setRawJson] = useState(defaultJson);
     const [validatedWidth, setValidatedWidth] = useState(1200);
     const [width, setWidth] = useState("1200");
     const [validatedHeight, setValidatedHeight] = useState(600);
@@ -306,14 +313,15 @@ export function App() {
                 </a>{" "}
                 if you{"'"}re confused
             </p>
-            <label>
+            <label className={styles.jsonInputLabel}>
                 json chart data:
                 <textarea
+                    className={styles.jsonInput}
                     value={rawJson}
                     onChange={(e) => setRawJson(e.target.value)}
                 />
             </label>
-            <label>
+            <label className={styles.inputLabel}>
                 width:
                 <input
                     type="number"
@@ -328,7 +336,7 @@ export function App() {
                     }}
                 />
             </label>
-            <label>
+            <label className={styles.inputLabel}>
                 height:
                 <input
                     type="number"
@@ -343,7 +351,7 @@ export function App() {
                     }}
                 />
             </label>
-            <label>
+            <label className={styles.inputLabel}>
                 gradient base:
                 <input
                     type="number"
