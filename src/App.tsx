@@ -2,11 +2,41 @@ import React, { useMemo, useState } from "react";
 import "chart.js/auto";
 import { Chart as ChartJS } from "chart.js";
 import { Chart } from "react-chartjs-2";
+import { Context as SvgContext } from "svgcanvas";
 import ChartDataLabels from "chartjs-plugin-datalabels";
 import Gradient from "linear-gradient";
 import styles from "./App.module.css";
 
 import type { ChartData, ChartOptions } from "chart.js";
+
+function makeSvgContext(options: {
+    width: number;
+    height: number;
+}): CanvasRenderingContext2D & {
+    getSerializedSvg: (fixNamedEntities?: boolean) => string;
+} {
+    const ctx = new SvgContext(options);
+
+    // THANK YOU https://stackoverflow.com/questions/45563420/exporting-chart-js-charts-to-svg-using-canvas2svg-js/47943363#47943363
+    // these changes to ctx are a hack to make chart.js work with svgcanvas
+
+    ctx.getContext = function (contextId: string) {
+        if (contextId == "2d" || contextId == "2D") {
+            return this;
+        }
+        return null;
+    };
+
+    ctx.style = function () {
+        return this.__canvas.style;
+    };
+
+    ctx.getAttribute = function (name: string) {
+        return this[name];
+    };
+
+    return ctx;
+}
 
 ChartJS.register(ChartDataLabels);
 
@@ -214,10 +244,23 @@ function buildChartOptions(data: AnnotatedDataPoint[]): ChartOptions {
                 enabled: false,
             },
         },
+        // must be false, or else the SVG download will break.
+        // if you set this to true, make sure you override it to false in the
+        // "download as svg" button's click handler.
         animation: false,
         maintainAspectRatio: false,
         events: [],
     };
+}
+
+function downloadSvg(data: string): void {
+    const blob = new Blob([data], { type: "image/svg+xml" });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "funnel.svg";
+    a.click();
+    window.URL.revokeObjectURL(url);
 }
 
 export function App() {
@@ -319,9 +362,43 @@ export function App() {
             </label>
             {"error" in parseResult && <p>{parseResult.error}</p>}
             {chartData !== null && chartOptions !== null && (
-                <div style={{ width: validatedWidth, height: validatedHeight }}>
-                    <Chart type="bar" data={chartData} options={chartOptions} />
-                </div>
+                <>
+                    <button
+                        onClick={() => {
+                            const svgContext = makeSvgContext({
+                                width: validatedWidth,
+                                height: validatedHeight,
+                            });
+                            const chart = new ChartJS(svgContext, {
+                                type: "bar",
+                                data: chartData,
+                                options: {
+                                    ...chartOptions,
+                                    // must be false, or else the SVG download will break.
+                                    responsive: false,
+                                },
+                            });
+                            chart.draw();
+                            const svg = svgContext.getSerializedSvg(true);
+                            downloadSvg(svg);
+                        }}
+                        className={styles.downloadButton}
+                    >
+                        download as svg
+                    </button>
+                    <div
+                        style={{
+                            width: validatedWidth,
+                            height: validatedHeight,
+                        }}
+                    >
+                        <Chart
+                            type="bar"
+                            data={chartData}
+                            options={chartOptions}
+                        />
+                    </div>
+                </>
             )}
         </div>
     );
