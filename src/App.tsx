@@ -190,9 +190,6 @@ const fontFamily = "Helvetica, Arial, sans-serif";
 const centerLabelFontSize = 16;
 const nonCenterLabelFontSize = 14;
 
-// users: 46px + 9px x log_10(number of users)
-// absolute: 98px
-// relative: 82px
 function createBarDescriptor(
     point: AnnotatedDataPoint,
     width: number
