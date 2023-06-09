@@ -4,8 +4,21 @@ import { App, exportedForTesting } from "./App";
 
 import type { DataPoint } from "./App";
 
+class ResizeObserver {
+    observe() {
+        // empty
+    }
+    unobserve() {
+        // emtpy
+    }
+    disconnect() {
+        // empty
+    }
+}
+
 describe("App", () => {
     it("renders without errors", () => {
+        window.ResizeObserver = ResizeObserver;
         render(<App />);
     });
 });

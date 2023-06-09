@@ -106,16 +106,6 @@ function parseData(rawJson: string): { error: string } | { data: DataPoint[] } {
     return { data: result };
 }
 
-type AnnotatedDataPoint =
-    | "blank"
-    | {
-          name: string;
-          count: number;
-          padding: number;
-          absoluteProportion: number;
-          relativeProportion: number | null;
-      };
-
 function validateData(data: DataPoint[]): { error: string } | null {
     let lastCount = null;
     for (let i = 0; i < data.length; i++) {
@@ -138,6 +128,16 @@ function validateData(data: DataPoint[]): { error: string } | null {
 
     return null;
 }
+
+type AnnotatedDataPoint =
+    | "blank"
+    | {
+          name: string;
+          count: number;
+          padding: number;
+          absoluteProportion: number;
+          relativeProportion: number | null;
+      };
 
 function annotateData(data: DataPoint[]): AnnotatedDataPoint[] {
     let firstStepCount: number | null = null;
@@ -162,6 +162,130 @@ function annotateData(data: DataPoint[]): AnnotatedDataPoint[] {
             relativeProportion,
         };
     });
+}
+
+type BarDescriptor = {
+    count: number;
+    padding: number;
+    gradientValue: number;
+    outerLeftLabel: string;
+    innerLeftLabel: string;
+    centerLabel: string;
+    innerRightLabel: string;
+    outerRightLabel: string;
+};
+
+const blankBarDescriptor: BarDescriptor = {
+    count: 0,
+    padding: 0,
+    gradientValue: 0,
+    outerLeftLabel: "",
+    innerLeftLabel: "",
+    centerLabel: "",
+    innerRightLabel: "",
+    outerRightLabel: "",
+};
+
+const fontFamily = "Helvetica, Arial, sans-serif";
+const centerLabelFontSize = 16;
+const nonCenterLabelFontSize = 14;
+
+// users: 46px + 9px x log_10(number of users)
+// absolute: 98px
+// relative: 82px
+function createBarDescriptor(
+    point: AnnotatedDataPoint,
+    width: number
+): BarDescriptor {
+    if (point === "blank") {
+        return blankBarDescriptor;
+    }
+
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+    if (ctx == null) {
+        throw new Error("couldn't get canvas context");
+    }
+
+    const usersLabel = `${point.count} user${point.count === 1 ? "" : "s"}`;
+    const absolutePercentageLabel = `${Math.round(
+        point.absoluteProportion * 100
+    )}% absolute`;
+    const relativePercentageLabel =
+        point.relativeProportion === null
+            ? null
+            : `${Math.round(point.relativeProportion * 100)}% relative`;
+    const stepNameLabel = point.name;
+
+    ctx.font = `bold ${centerLabelFontSize}px ${fontFamily}`;
+    const usersLabelWidth = ctx.measureText(usersLabel).width;
+    const barWidth = width * point.absoluteProportion;
+
+    if (usersLabelWidth + 8 > barWidth) {
+        return {
+            count: point.count,
+            padding: point.padding,
+            gradientValue: point.absoluteProportion,
+            outerLeftLabel: stepNameLabel,
+            innerLeftLabel: "",
+            centerLabel: "",
+            innerRightLabel: "",
+            outerRightLabel: [
+                usersLabel,
+                absolutePercentageLabel,
+                ...(relativePercentageLabel === null
+                    ? []
+                    : [relativePercentageLabel]),
+            ].join("\n"),
+        };
+    }
+
+    const availableHalfBarWidth = (barWidth - usersLabelWidth) / 2 - 20;
+
+    ctx.font = `bold ${nonCenterLabelFontSize}px ${fontFamily}`;
+    const absolutePercentageLabelWidth = ctx.measureText(
+        absolutePercentageLabel
+    ).width;
+    const relativePercentageLabelWidth =
+        relativePercentageLabel === null
+            ? 0
+            : ctx.measureText(relativePercentageLabel).width;
+    const percentageLabelWidth = Math.max(
+        absolutePercentageLabelWidth,
+        relativePercentageLabelWidth
+    );
+
+    let innerRightLabel = "";
+    let outerRightLabel = "";
+    const percentageLabel = [
+        absolutePercentageLabel,
+        ...(relativePercentageLabel === null ? [] : [relativePercentageLabel]),
+    ].join("\n");
+    if (percentageLabelWidth > availableHalfBarWidth) {
+        outerRightLabel = percentageLabel;
+    } else {
+        innerRightLabel = percentageLabel;
+    }
+
+    let innerLeftLabel = "";
+    let outerLeftLabel = "";
+    const stepNameLabelWidth = ctx.measureText(stepNameLabel).width;
+    if (stepNameLabelWidth > availableHalfBarWidth) {
+        outerLeftLabel = stepNameLabel;
+    } else {
+        innerLeftLabel = stepNameLabel;
+    }
+
+    return {
+        count: point.count,
+        padding: point.padding,
+        gradientValue: point.absoluteProportion,
+        outerLeftLabel,
+        innerLeftLabel,
+        centerLabel: usersLabel,
+        innerRightLabel,
+        outerRightLabel,
+    };
 }
 
 function getTopOfFunnelCount(data: DataPoint[]): number {
@@ -218,88 +342,85 @@ function downloadSvg(data: string): void {
 }
 
 function buildChartData(
-    data: AnnotatedDataPoint[],
+    bars: BarDescriptor[],
     gradientBase: number
 ): ChartData {
     return {
-        labels: data.map((dataPoint) =>
-            dataPoint === "blank" ? "" : dataPoint.name
-        ),
+        labels: bars.map(() => ""),
         datasets: [
             {
-                label: "padding",
-                data: data.map((dataPoint) =>
-                    dataPoint === "blank" ? 0 : dataPoint.padding
-                ),
+                label: "left padding",
+                data: bars.map((bar) => bar.padding),
                 backgroundColor: "rgba(0, 0, 0, 0)",
                 datalabels: {
-                    display: false,
+                    color: "black",
+                    padding: 0,
+                    font: {
+                        weight: "bold",
+                        size: 14,
+                    },
+                    align: "left",
+                    anchor: "end",
+                    formatter: (_, { dataIndex }) =>
+                        bars[dataIndex].outerLeftLabel,
                 },
             },
             {
                 label: "counts",
-                data: data.map((dataPoint) =>
-                    dataPoint === "blank" ? 0 : dataPoint.count
-                ),
-                backgroundColor: data.map((dataPoint) =>
-                    dataPoint === "blank"
-                        ? "white"
-                        : getColor(dataPoint.absoluteProportion, gradientBase)
+                data: bars.map((bar) => bar.count),
+                backgroundColor: bars.map((bar) =>
+                    getColor(bar.gradientValue, gradientBase)
                 ),
                 datalabels: {
                     color: "white",
+                    padding: 0,
+                    font: {
+                        weight: "bold",
+                    },
                     labels: {
-                        count: {
-                            padding: 0,
+                        center: {
                             font: {
                                 size: 16,
-                                weight: "bold",
                             },
-                            formatter: (value, { dataIndex }) =>
-                                data[dataIndex] === "blank"
-                                    ? ""
-                                    : `${value} users`,
+                            formatter: (_, { dataIndex }) =>
+                                bars[dataIndex].centerLabel,
                         },
-                        percentages: {
+                        innerRight: {
                             align: "left",
                             anchor: "end",
-                            padding: 0,
                             font: {
                                 size: 14,
-                                weight: "bold",
                             },
-                            formatter: (_, { dataIndex }) => {
-                                const dataPoint = data[dataIndex];
-                                return dataPoint === "blank"
-                                    ? ""
-                                    : `${Math.round(
-                                          dataPoint.absoluteProportion * 100
-                                      )}% absolute${
-                                          dataPoint.relativeProportion === null
-                                              ? ""
-                                              : ` / ${Math.round(
-                                                    dataPoint.relativeProportion *
-                                                        100
-                                                )}% relative`
-                                      }`;
-                            },
+                            formatter: (_, { dataIndex }) =>
+                                bars[dataIndex].innerRightLabel,
                         },
-                        label: {
+                        innerLeft: {
                             anchor: "start",
                             align: "right",
-                            padding: 0,
                             font: {
                                 size: 14,
-                                weight: "bold",
                             },
-                            formatter: (_, { dataIndex }) => {
-                                const dataPoint = data[dataIndex];
-                                return dataPoint === "blank"
-                                    ? ""
-                                    : dataPoint.name;
-                            },
+                            formatter: (_, { dataIndex }) =>
+                                bars[dataIndex].innerLeftLabel,
                         },
                     },
+                },
+            },
+            {
+                label: "right padding",
+                data: bars.map((bar) => bar.padding),
+                backgroundColor: "rgba(0, 0, 0, 0)",
+                datalabels: {
+                    color: "black",
+                    padding: 0,
+                    font: {
+                        weight: "bold",
+                        size: 14,
+                    },
+                    align: "right",
+                    anchor: "start",
+                    formatter: (_, { dataIndex }) =>
+                        bars[dataIndex].outerRightLabel,
                 },
             },
         ],
@@ -369,8 +490,13 @@ export function App() {
         if ("error" in parseResult) {
             return null;
         }
-        return buildChartData(parseResult.data, validatedGradientBase);
-    }, [parseResult, validatedGradientBase]);
+        return buildChartData(
+            parseResult.data.map((point) =>
+                createBarDescriptor(point, validatedWidth)
+            ),
+            validatedGradientBase
+        );
+    }, [parseResult, validatedGradientBase, validatedWidth]);
 
     const chartOptions = useMemo(() => {
         if ("error" in parseResult) {
