@@ -215,6 +215,10 @@ function createBarDescriptor(
         point.relativeProportion === null
             ? null
             : `${Math.round(point.relativeProportion * 100)}% relative`;
+    const percentageLabel = [
+        absolutePercentageLabel,
+        ...(relativePercentageLabel === null ? [] : [relativePercentageLabel]),
+    ].join("\n");
     const stepNameLabel = point.name;
 
     ctx.font = `bold ${centerLabelFontSize}px ${fontFamily}`;
@@ -230,17 +234,24 @@ function createBarDescriptor(
             innerLeftLabel: "",
             centerLabel: "",
             innerRightLabel: "",
-            outerRightLabel: [
-                usersLabel,
-                absolutePercentageLabel,
-                ...(relativePercentageLabel === null
-                    ? []
-                    : [relativePercentageLabel]),
-            ].join("\n"),
+            outerRightLabel: [usersLabel, percentageLabel].join("\n"),
         };
     }
 
     const availableHalfBarWidth = (barWidth - usersLabelWidth) / 2 - 20;
+    const availablePaddingWidth = (width - barWidth) / 2 - 8;
+    if (availablePaddingWidth < availableHalfBarWidth) {
+        return {
+            count: point.count,
+            padding: point.padding,
+            gradientValue: point.absoluteProportion,
+            outerLeftLabel: "",
+            innerLeftLabel: stepNameLabel,
+            centerLabel: usersLabel,
+            innerRightLabel: percentageLabel,
+            outerRightLabel: "",
+        };
+    }
 
     ctx.font = `bold ${nonCenterLabelFontSize}px ${fontFamily}`;
     const absolutePercentageLabelWidth = ctx.measureText(
@@ -257,10 +268,6 @@ function createBarDescriptor(
 
     let innerRightLabel = "";
     let outerRightLabel = "";
-    const percentageLabel = [
-        absolutePercentageLabel,
-        ...(relativePercentageLabel === null ? [] : [relativePercentageLabel]),
-    ].join("\n");
     if (percentageLabelWidth > availableHalfBarWidth) {
         outerRightLabel = percentageLabel;
     } else {
