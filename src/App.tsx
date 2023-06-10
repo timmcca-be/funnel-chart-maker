@@ -13,48 +13,7 @@ import styles from "./App.module.css";
 import type { ChartData, ChartOptions } from "chart.js";
 import type { DataPoint } from "./FunnelDataInput";
 
-function makeSvgContext(options: {
-    width: number;
-    height: number;
-}): CanvasRenderingContext2D & {
-    getSerializedSvg: (fixNamedEntities?: boolean) => string;
-} {
-    const ctx = new SvgContext(options);
-
-    // THANK YOU https://stackoverflow.com/questions/45563420/exporting-chart-js-charts-to-svg-using-canvas2svg-js/47943363#47943363
-    // these changes to ctx are a hack to make chart.js work with svgcanvas
-
-    ctx.getContext = function (contextId: string) {
-        if (contextId == "2d" || contextId == "2D") {
-            return this;
-        }
-        return null;
-    };
-
-    ctx.style = function () {
-        return this.__canvas.style;
-    };
-
-    ctx.getAttribute = function (name: string) {
-        return this[name];
-    };
-
-    return ctx;
-}
-
 ChartJS.register(ChartDataLabels);
-
-const gradient = new Gradient([
-    [252, 70, 107],
-    [63, 94, 251],
-]);
-
-function getColor(absoluteProportion: number, gradientBase: number): string {
-    const [r, g, b] = gradient.calcArray(
-        Math.max((absoluteProportion - gradientBase) / (1 - gradientBase), 0)
-    );
-    return `rgb(${r}, ${g}, ${b})`;
-}
 
 type AnnotatedDataPoint =
     | "blank"
@@ -233,6 +192,18 @@ function createBarDescriptor(
     };
 }
 
+const gradient = new Gradient([
+    [252, 70, 107],
+    [63, 94, 251],
+]);
+
+function getColor(absoluteProportion: number, gradientBase: number): string {
+    const [r, g, b] = gradient.calcArray(
+        Math.max((absoluteProportion - gradientBase) / (1 - gradientBase), 0)
+    );
+    return `rgb(${r}, ${g}, ${b})`;
+}
+
 function buildChartData(
     bars: BarDescriptor[],
     gradientBase: number
@@ -348,6 +319,35 @@ function buildChartOptions(topOfFunnelCount: number): ChartOptions {
         animation: false,
         events: [],
     };
+}
+
+function makeSvgContext(options: {
+    width: number;
+    height: number;
+}): CanvasRenderingContext2D & {
+    getSerializedSvg: (fixNamedEntities?: boolean) => string;
+} {
+    const ctx = new SvgContext(options);
+
+    // THANK YOU https://stackoverflow.com/questions/45563420/exporting-chart-js-charts-to-svg-using-canvas2svg-js/47943363#47943363
+    // these changes to ctx are a hack to make chart.js work with svgcanvas
+
+    ctx.getContext = function (contextId: string) {
+        if (contextId == "2d" || contextId == "2D") {
+            return this;
+        }
+        return null;
+    };
+
+    ctx.style = function () {
+        return this.__canvas.style;
+    };
+
+    ctx.getAttribute = function (name: string) {
+        return this[name];
+    };
+
+    return ctx;
 }
 
 function createChartSvg(
