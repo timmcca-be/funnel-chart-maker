@@ -1,0 +1,13 @@
+.jsonInputLabel {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+.jsonInput {
+    height: 10rem;
+    padding: 1rem;
+    border: 1px solid #ccc;
+    border-radius: 0.5rem;
+    resize: vertical;
+}

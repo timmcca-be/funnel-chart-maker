@@ -7,9 +7,11 @@ import ChartDataLabels from "chartjs-plugin-datalabels";
 import Gradient from "linear-gradient";
 
 import { NumberInput } from "./NumberInput";
+import { FunnelDataInput } from "./FunnelDataInput";
 import styles from "./App.module.css";
 
 import type { ChartData, ChartOptions } from "chart.js";
+import type { DataPoint } from "./FunnelDataInput";
 
 function makeSvgContext(options: {
     width: number;
@@ -54,89 +56,11 @@ function getColor(absoluteProportion: number, gradientBase: number): string {
     return `rgb(${r}, ${g}, ${b})`;
 }
 
-export type DataPoint =
-    | "blank"
-    | {
-          name: string;
-          count: number;
-      };
-
-function parseData(rawJson: string): { error: string } | { data: DataPoint[] } {
-    let result: unknown;
-    try {
-        result = JSON.parse(rawJson);
-    } catch (e) {
-        return { error: "invalid JSON" };
-    }
-
-    if (!Array.isArray(result)) {
-        return { error: "not an array" };
-    }
-    for (let i = 0; i < result.length; i++) {
-        const dataPoint = result[i];
-        if (dataPoint === "blank") {
-            continue;
-        }
-        if (dataPoint == null) {
-            return { error: `null at index ${i}` };
-        }
-        if (typeof dataPoint !== "object") {
-            return { error: `not "blank" or an object at index ${i}` };
-        }
-        if (!("name" in dataPoint)) {
-            return {
-                error: `step name missing at index ${i}`,
-            };
-        }
-        if (typeof dataPoint.name !== "string") {
-            return {
-                error: `step name not a string at index ${i}`,
-            };
-        }
-        if (!("count" in dataPoint)) {
-            return {
-                error: `step count missing at index ${i}`,
-            };
-        }
-        if (typeof dataPoint.count !== "number") {
-            return {
-                error: `step count not a number at index ${i}`,
-            };
-        }
-    }
-
-    return { data: result };
-}
-
-function validateData(data: DataPoint[]): { error: string } | null {
-    let lastCount = null;
-    for (let i = 0; i < data.length; i++) {
-        const dataPoint = data[i];
-        if (dataPoint === "blank") {
-            continue;
-        }
-        if (dataPoint.count < 0) {
-            return {
-                error: `step count at index ${i} is negative`,
-            };
-        }
-        if (lastCount !== null && dataPoint.count > lastCount) {
-            return {
-                error: `step count at index ${i} is greater than the previous step count`,
-            };
-        }
-        lastCount = dataPoint.count;
-    }
-
-    return null;
-}
-
 type AnnotatedDataPoint =
     | "blank"
     | {
           name: string;
           count: number;
-          padding: number;
           absoluteProportion: number;
           relativeProportion: number | null;
       };
@@ -159,12 +83,24 @@ function annotateData(data: DataPoint[]): AnnotatedDataPoint[] {
         preceedingStepCount = dataPoint.count;
         return {
             ...dataPoint,
-            padding: (firstStepCount - dataPoint.count) / 2,
             absoluteProportion,
             relativeProportion,
         };
     });
 }
+
+function getTopOfFunnelCount(data: DataPoint[]): number {
+    return (
+        data
+            .map((dataPoint) => (dataPoint === "blank" ? 0 : dataPoint.count))
+            .find((count) => count > 0) ?? 0
+    );
+}
+
+export const exportedForTesting = {
+    annotateData,
+    getTopOfFunnelCount,
+};
 
 type BarDescriptor = {
     count: number;
@@ -194,11 +130,14 @@ const nonCenterLabelFontSize = 14;
 
 function createBarDescriptor(
     point: AnnotatedDataPoint,
+    topOfFunnelCount: number,
     width: number
 ): BarDescriptor {
     if (point === "blank") {
         return blankBarDescriptor;
     }
+
+    const padding = (topOfFunnelCount - point.count) / 2;
 
     const canvas = document.createElement("canvas");
     const ctx = canvas.getContext("2d");
@@ -227,7 +166,7 @@ function createBarDescriptor(
     if (usersLabelWidth + 8 > barWidth) {
         return {
             count: point.count,
-            padding: point.padding,
+            padding,
             gradientValue: point.absoluteProportion,
             outerLeftLabel: stepNameLabel,
             innerLeftLabel: "",
@@ -242,7 +181,7 @@ function createBarDescriptor(
     if (availablePaddingWidth < availableHalfBarWidth) {
         return {
             count: point.count,
-            padding: point.padding,
+            padding,
             gradientValue: point.absoluteProportion,
             outerLeftLabel: "",
             innerLeftLabel: stepNameLabel,
@@ -284,7 +223,7 @@ function createBarDescriptor(
 
     return {
         count: point.count,
-        padding: point.padding,
+        padding,
         gradientValue: point.absoluteProportion,
         outerLeftLabel,
         innerLeftLabel,
@@ -292,59 +231,6 @@ function createBarDescriptor(
         innerRightLabel,
         outerRightLabel,
     };
-}
-
-function getTopOfFunnelCount(data: DataPoint[]): number {
-    return (
-        data
-            .map((dataPoint) => (dataPoint === "blank" ? 0 : dataPoint.count))
-            .find((count) => count > 0) ?? 0
-    );
-}
-
-export const exportedForTesting = {
-    parseData,
-    validateData,
-    annotateData,
-    getTopOfFunnelCount,
-};
-
-function createChartSvg(
-    options: {
-        width: number;
-        height: number;
-        gradientBase: number;
-    },
-    chartData: ChartData,
-    chartOptions: ChartOptions
-): string {
-    const svgContext = makeSvgContext({
-        width: options.width,
-        height: options.height,
-    });
-    const chart = new ChartJS(svgContext, {
-        type: "bar",
-        data: chartData,
-        options: {
-            ...chartOptions,
-            // these overrides are necessary to ensure chart.js plays nicely with svgcanvas
-            responsive: false,
-            animation: false,
-            events: [],
-        },
-    });
-    chart.draw();
-    return svgContext.getSerializedSvg(true);
-}
-
-function downloadSvg(data: string): void {
-    const blob = new Blob([data], { type: "image/svg+xml" });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "funnel.svg";
-    a.click();
-    window.URL.revokeObjectURL(url);
 }
 
 function buildChartData(
@@ -364,6 +250,7 @@ function buildChartData(
                     font: {
                         weight: "bold",
                         size: 14,
+                        family: fontFamily,
                     },
                     align: "left",
                     anchor: "end",
@@ -382,6 +269,7 @@ function buildChartData(
                     padding: 0,
                     font: {
                         weight: "bold",
+                        family: fontFamily,
                     },
                     labels: {
                         center: {
@@ -422,6 +310,7 @@ function buildChartData(
                     font: {
                         weight: "bold",
                         size: 14,
+                        family: fontFamily,
                     },
                     align: "right",
                     anchor: "start",
@@ -461,15 +350,55 @@ function buildChartOptions(topOfFunnelCount: number): ChartOptions {
     };
 }
 
-const defaultJson = `[
-    {"name": "did a thing", "count": 100},
-    {"name": "did another thing", "count": 80},
+function createChartSvg(
+    options: {
+        width: number;
+        height: number;
+        gradientBase: number;
+    },
+    chartData: ChartData,
+    chartOptions: ChartOptions
+): string {
+    const svgContext = makeSvgContext({
+        width: options.width,
+        height: options.height,
+    });
+    const chart = new ChartJS(svgContext, {
+        type: "bar",
+        data: chartData,
+        options: {
+            ...chartOptions,
+            // these overrides are necessary to ensure chart.js plays nicely with svgcanvas
+            responsive: false,
+            animation: false,
+            events: [],
+        },
+    });
+    chart.draw();
+    return svgContext.getSerializedSvg(true);
+}
+
+function downloadSvg(data: string): void {
+    const blob = new Blob([data], { type: "image/svg+xml" });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "funnel.svg";
+    a.click();
+    window.URL.revokeObjectURL(url);
+}
+
+const defaultFunnelData: DataPoint[] = [
+    { name: "did a thing", count: 100 },
+    { name: "did another thing", count: 80 },
     "blank",
-    {"name": "did something good", "count": 60}
-]`;
+    { name: "did something good", count: 60 },
+];
 
 export function App() {
-    const [rawJson, setRawJson] = useState(defaultJson);
+    const [funnelData, setFunnelData] =
+        useState<DataPoint[]>(defaultFunnelData);
+    const [funnelDataError, setFunnelDataError] = useState<string | null>(null);
     const [width, setWidth] = useState(1200);
     const [height, setHeight] = useState(600);
     // 0 <= gradientBase < 1
@@ -477,34 +406,20 @@ export function App() {
     // span 0.3 to 1, you'd set this to 0.3. set this a little below the lowest
     // absolute proportion in all of the funnels you're comparing.
     const [gradientBase, setGradientBase] = useState(0);
-    const parseResult = useMemo(() => {
-        const result = parseData(rawJson);
-        if ("error" in result) {
-            return result;
-        }
-        const validationResult = validateData(result.data);
-        if (validationResult !== null) {
-            return validationResult;
-        }
-        return { data: annotateData(result.data) };
-    }, [rawJson]);
 
-    const chartData = useMemo(() => {
-        if ("error" in parseResult) {
-            return null;
-        }
-        return buildChartData(
-            parseResult.data.map((point) => createBarDescriptor(point, width)),
-            gradientBase
-        );
-    }, [parseResult, gradientBase, width]);
-
-    const chartOptions = useMemo(() => {
-        if ("error" in parseResult) {
-            return null;
-        }
-        return buildChartOptions(getTopOfFunnelCount(parseResult.data));
-    }, [parseResult]);
+    const chartProps = useMemo(() => {
+        const annotated = annotateData(funnelData);
+        const topOfFunnelCount = getTopOfFunnelCount(funnelData);
+        return {
+            data: buildChartData(
+                annotated.map((point) =>
+                    createBarDescriptor(point, topOfFunnelCount, width)
+                ),
+                gradientBase
+            ),
+            options: buildChartOptions(topOfFunnelCount),
+        };
+    }, [funnelData, gradientBase, width]);
 
     return (
         <div className={styles.app}>
@@ -515,14 +430,11 @@ export function App() {
                 </a>{" "}
                 if you{"'"}re confused
             </p>
-            <label className={styles.jsonInputLabel}>
-                json chart data:
-                <textarea
-                    className={styles.jsonInput}
-                    value={rawJson}
-                    onChange={(e) => setRawJson(e.target.value)}
-                />
-            </label>
+            <FunnelDataInput
+                value={funnelData}
+                onChange={setFunnelData}
+                setErrorMessage={setFunnelDataError}
+            />
             <NumberInput
                 label="width"
                 value={width}
@@ -543,8 +455,7 @@ export function App() {
                 max={0.99}
                 step={0.01}
             />
-            {"error" in parseResult && <p>{parseResult.error}</p>}
-            {chartData !== null && chartOptions !== null && (
+            {funnelDataError === null ? (
                 <>
                     <button
                         onClick={() => {
@@ -554,8 +465,8 @@ export function App() {
                                     height,
                                     gradientBase,
                                 },
-                                chartData,
-                                chartOptions
+                                chartProps.data,
+                                chartProps.options
                             );
                             downloadSvg(chartSvg);
                         }}
@@ -564,13 +475,11 @@ export function App() {
                         download as svg
                     </button>
                     <div style={{ width, height }}>
-                        <Chart
-                            type="bar"
-                            data={chartData}
-                            options={chartOptions}
-                        />
+                        <Chart type="bar" {...chartProps} />
                     </div>
                 </>
+            ) : (
+                <p>{funnelDataError}</p>
             )}
         </div>
     );
