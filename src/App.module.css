@@ -20,12 +20,6 @@
   resize: vertical;
 }
 
-.inputLabel {
-  display: flex;
-  flex-direction: row;
-  gap: 1rem;
-}
-
 .downloadButton {
   padding: 1rem;
 }

@@ -5,6 +5,8 @@ import { Chart } from "react-chartjs-2";
 import { Context as SvgContext } from "svgcanvas";
 import ChartDataLabels from "chartjs-plugin-datalabels";
 import Gradient from "linear-gradient";
+
+import { NumberInput } from "./NumberInput";
 import styles from "./App.module.css";
 
 import type { ChartData, ChartOptions } from "chart.js";
@@ -468,16 +470,13 @@ const defaultJson = `[
 
 export function App() {
     const [rawJson, setRawJson] = useState(defaultJson);
-    const [validatedWidth, setValidatedWidth] = useState(1200);
-    const [width, setWidth] = useState("1200");
-    const [validatedHeight, setValidatedHeight] = useState(600);
-    const [height, setHeight] = useState("600");
-    const [validatedGradientBase, setValidatedGradientBase] = useState(0);
+    const [width, setWidth] = useState(1200);
+    const [height, setHeight] = useState(600);
     // 0 <= gradientBase < 1
     // this sets the "bottom" of the gradient. so if you want the gradient to
     // span 0.3 to 1, you'd set this to 0.3. set this a little below the lowest
     // absolute proportion in all of the funnels you're comparing.
-    const [gradientBase, setGradientBase] = useState("0");
+    const [gradientBase, setGradientBase] = useState(0);
     const parseResult = useMemo(() => {
         const result = parseData(rawJson);
         if ("error" in result) {
@@ -495,12 +494,10 @@ export function App() {
             return null;
         }
         return buildChartData(
-            parseResult.data.map((point) =>
-                createBarDescriptor(point, validatedWidth)
-            ),
-            validatedGradientBase
+            parseResult.data.map((point) => createBarDescriptor(point, width)),
+            gradientBase
         );
-    }, [parseResult, validatedGradientBase, validatedWidth]);
+    }, [parseResult, gradientBase, width]);
 
     const chartOptions = useMemo(() => {
         if ("error" in parseResult) {
@@ -526,53 +523,26 @@ export function App() {
                     onChange={(e) => setRawJson(e.target.value)}
                 />
             </label>
-            <label className={styles.inputLabel}>
-                width:
-                <input
-                    type="number"
-                    value={width}
-                    min={1}
-                    onChange={(e) => {
-                        setWidth(e.target.value);
-                        const newValue = parseInt(e.target.value);
-                        if (!isNaN(newValue) && newValue >= 1) {
-                            setValidatedWidth(newValue);
-                        }
-                    }}
-                />
-            </label>
-            <label className={styles.inputLabel}>
-                height:
-                <input
-                    type="number"
-                    value={height}
-                    min={1}
-                    onChange={(e) => {
-                        setHeight(e.target.value);
-                        const newValue = parseInt(e.target.value);
-                        if (!isNaN(newValue) && newValue >= 1) {
-                            setValidatedHeight(newValue);
-                        }
-                    }}
-                />
-            </label>
-            <label className={styles.inputLabel}>
-                gradient base:
-                <input
-                    type="number"
-                    value={gradientBase}
-                    min={0}
-                    max={0.99}
-                    step={0.01}
-                    onChange={(e) => {
-                        setGradientBase(e.target.value);
-                        const newValue = parseFloat(e.target.value);
-                        if (!isNaN(newValue) && newValue >= 0 && newValue < 1) {
-                            setValidatedGradientBase(newValue);
-                        }
-                    }}
-                />
-            </label>
+            <NumberInput
+                label="width"
+                value={width}
+                onChange={setWidth}
+                min={1}
+            />
+            <NumberInput
+                label="height"
+                value={height}
+                onChange={setHeight}
+                min={1}
+            />
+            <NumberInput
+                label="gradient base"
+                value={gradientBase}
+                onChange={setGradientBase}
+                min={0}
+                max={0.99}
+                step={0.01}
+            />
             {"error" in parseResult && <p>{parseResult.error}</p>}
             {chartData !== null && chartOptions !== null && (
                 <>
@@ -580,9 +550,9 @@ export function App() {
                         onClick={() => {
                             const chartSvg = createChartSvg(
                                 {
-                                    width: validatedWidth,
-                                    height: validatedHeight,
-                                    gradientBase: validatedGradientBase,
+                                    width,
+                                    height,
+                                    gradientBase,
                                 },
                                 chartData,
                                 chartOptions
@@ -593,12 +563,7 @@ export function App() {
                     >
                         download as svg
                     </button>
-                    <div
-                        style={{
-                            width: validatedWidth,
-                            height: validatedHeight,
-                        }}
-                    >
+                    <div style={{ width, height }}>
                         <Chart
                             type="bar"
                             data={chartData}
