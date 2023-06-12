@@ -49,155 +49,170 @@ function getColor(absoluteProportion: number, gradientBase: number): string {
     return `rgb(${r}, ${g}, ${b})`;
 }
 
+function measureHeightOfLines(numberOfLines: number, fontSize: number) {
+    return numberOfLines * fontSize + (numberOfLines - 1) * textPadding;
+}
+
+type Point = {
+    // distance from left edge of canvas to point
+    x: number;
+    // distance from top edge of canvas to point
+    y: number;
+};
+
 type Rect = {
-    topLeftCorner: {
-        x: number;
-        y: number;
-    };
+    topLeftCorner: Point;
     width: number;
     height: number;
 };
 
-function fillRect(ctx: CanvasRenderingContext2D, rect: Rect, color: string) {
-    ctx.fillStyle = color;
-    ctx.fillRect(
-        rect.topLeftCorner.x,
-        rect.topLeftCorner.y,
-        rect.width,
-        rect.height
-    );
-}
-
 type TextParameters = {
     fontSize: number;
-    lineHeight: number;
+    color: string;
+    textAlign: CanvasTextAlign;
 };
 
-function setFontSize(ctx: CanvasRenderingContext2D, fontSize: number) {
-    ctx.font = `bold ${fontSize}px Helvetica, Arial, sans-serif`;
-}
+// CanvasRenderingContext2D is very stateful, so we wrap it in a class to
+// isolate the logic that has to touch it directly.
+class ChartContext {
+    _ctx: CanvasRenderingContext2D;
 
-function measureTextWidth(
-    ctx: CanvasRenderingContext2D,
-    text: string | string[],
-    fontSize: number
-) {
-    const lines = Array.isArray(text) ? text : [text];
-    setFontSize(ctx, fontSize);
-    return Math.max(...lines.map((line) => ctx.measureText(line).width));
-}
+    constructor(ctx: CanvasRenderingContext2D) {
+        this._ctx = ctx;
+    }
 
-function measureHeightOfLines(
-    numberOfLines: number,
-    textParameters: TextParameters
-) {
-    return (
-        numberOfLines * textParameters.fontSize +
-        (numberOfLines - 1) *
-            (textParameters.lineHeight - textParameters.fontSize)
-    );
-}
+    _setFontSize(fontSize: number) {
+        this._ctx.font = `bold ${fontSize}px Helvetica, Arial, sans-serif`;
+    }
 
-function writeText(
-    ctx: CanvasRenderingContext2D,
-    position: {
-        x: number;
-        y: number;
-    },
-    text: string | string[],
-    textParameters: TextParameters
-) {
-    const lines = Array.isArray(text) ? text : [text];
-    ctx.textBaseline = "top";
-    setFontSize(ctx, textParameters.fontSize);
-    const totalHeight = measureHeightOfLines(lines.length, textParameters);
-    const topOfFirstLine = position.y - totalHeight / 2;
-    lines.forEach((line, index) => {
-        const y = topOfFirstLine + index * textParameters.lineHeight;
-        ctx.fillText(line, position.x, y);
-    });
+    measureTextWidth(text: string | string[], fontSize: number) {
+        const lines = Array.isArray(text) ? text : [text];
+        this._setFontSize(fontSize);
+        return Math.max(
+            ...lines.map((line) => this._ctx.measureText(line).width)
+        );
+    }
+
+    writeText(
+        position: Point,
+        text: string | string[],
+        { fontSize, color, textAlign }: TextParameters
+    ) {
+        const lines = Array.isArray(text) ? text : [text];
+        this._ctx.textBaseline = "top";
+        this._ctx.fillStyle = color;
+        this._ctx.textAlign = textAlign;
+        this._setFontSize(fontSize);
+        const lineHeight = fontSize + textPadding;
+        const totalHeight = measureHeightOfLines(lines.length, fontSize);
+        const topOfFirstLine = position.y - totalHeight / 2;
+        lines.forEach((line, index) => {
+            const y = topOfFirstLine + index * lineHeight;
+            this._ctx.fillText(line, position.x, y);
+        });
+    }
+
+    fillRect(rect: Rect, color: string) {
+        this._ctx.fillStyle = color;
+        this._ctx.fillRect(
+            rect.topLeftCorner.x,
+            rect.topLeftCorner.y,
+            rect.width,
+            rect.height
+        );
+    }
 }
 
 function writeCenterText(
-    ctx: CanvasRenderingContext2D,
+    chartCtx: ChartContext,
     rect: Rect,
     text: string | string[],
-    textParameters: TextParameters
+    fontSize: number
 ) {
     const position = {
         x: rect.topLeftCorner.x + rect.width / 2,
         y: rect.topLeftCorner.y + rect.height / 2,
     };
-    ctx.fillStyle = "white";
-    ctx.textAlign = "center";
-    writeText(ctx, position, text, textParameters);
+    chartCtx.writeText(position, text, {
+        fontSize,
+        color: "white",
+        textAlign: "center",
+    });
 }
 
 const textPadding = 4;
 const betweenTextPadding = 24;
 
 function writeInnerLeftText(
-    ctx: CanvasRenderingContext2D,
+    chartCtx: ChartContext,
     rect: Rect,
     text: string | string[],
-    textParameters: TextParameters
+    fontSize: number
 ) {
     const position = {
         x: rect.topLeftCorner.x + textPadding,
         y: rect.topLeftCorner.y + rect.height / 2,
     };
-    ctx.fillStyle = "white";
-    ctx.textAlign = "left";
-    writeText(ctx, position, text, textParameters);
+    chartCtx.writeText(position, text, {
+        fontSize,
+        color: "white",
+        textAlign: "left",
+    });
 }
 
 function writeOuterLeftText(
-    ctx: CanvasRenderingContext2D,
+    chartCtx: ChartContext,
     rect: Rect,
     text: string | string[],
-    textParameters: TextParameters
+    fontSize: number
 ) {
     const position = {
         x: rect.topLeftCorner.x - textPadding,
         y: rect.topLeftCorner.y + rect.height / 2,
     };
-    ctx.fillStyle = "black";
-    ctx.textAlign = "right";
-    writeText(ctx, position, text, textParameters);
+    chartCtx.writeText(position, text, {
+        fontSize,
+        color: "black",
+        textAlign: "right",
+    });
 }
 
 function writeInnerRightText(
-    ctx: CanvasRenderingContext2D,
+    chartCtx: ChartContext,
     rect: Rect,
     text: string | string[],
-    textParameters: TextParameters
+    fontSize: number
 ) {
     const position = {
         x: rect.topLeftCorner.x + rect.width - textPadding,
         y: rect.topLeftCorner.y + rect.height / 2,
     };
-    ctx.fillStyle = "white";
-    ctx.textAlign = "right";
-    writeText(ctx, position, text, textParameters);
+    chartCtx.writeText(position, text, {
+        fontSize,
+        color: "white",
+        textAlign: "right",
+    });
 }
 
 function writeOuterRightText(
-    ctx: CanvasRenderingContext2D,
+    chartCtx: ChartContext,
     rect: Rect,
     text: string | string[],
-    textParameters: TextParameters
+    fontSize: number
 ) {
     const position = {
         x: rect.topLeftCorner.x + rect.width + textPadding,
         y: rect.topLeftCorner.y + rect.height / 2,
     };
-    ctx.fillStyle = "black";
-    ctx.textAlign = "left";
-    writeText(ctx, position, text, textParameters);
+    chartCtx.writeText(position, text, {
+        fontSize,
+        color: "black",
+        textAlign: "left",
+    });
 }
 
 function wrapTextToWidth(
-    ctx: CanvasRenderingContext2D,
+    chartCtx: ChartContext,
     text: string,
     fontSize: number,
     width: number
@@ -207,29 +222,108 @@ function wrapTextToWidth(
 } {
     const words = text.split(" ");
     const lines: string[] = [];
-    let currentLine = "";
+    let currentLine: string | null = null;
     let hasHorizontalOverflow = false;
     words.forEach((word) => {
         const currentLineWithWord =
-            currentLine + (currentLine === "" ? "" : " ") + word;
-        const currentLineWidth = measureTextWidth(
-            ctx,
+            currentLine === null ? word : `${currentLine} ${word}`;
+        const currentLineWidth = chartCtx.measureTextWidth(
             currentLineWithWord,
             fontSize
         );
         if (currentLineWidth > width) {
-            lines.push(currentLine);
-            currentLine = word;
-            if (measureTextWidth(ctx, word, fontSize) > width) {
-                // this word alone is longer than the width
+            if (currentLine === null) {
+                // this word alone has pushed us over the width
                 hasHorizontalOverflow = true;
+                lines.push(word);
+                currentLine = null;
+            } else {
+                hasHorizontalOverflow ||=
+                    chartCtx.measureTextWidth(word, fontSize) > width;
+                lines.push(currentLine);
+                currentLine = word;
             }
         } else {
             currentLine = currentLineWithWord;
         }
     });
-    lines.push(currentLine);
+    if (currentLine !== null) {
+        lines.push(currentLine);
+    }
     return { lines, hasHorizontalOverflow };
+}
+
+type Spacing = {
+    inside: number;
+    outside: number;
+};
+
+function writeStepName(
+    chartCtx: ChartContext,
+    rect: Rect,
+    text: string,
+    spacing: Spacing
+) {
+    const fontSize = 14;
+
+    const wrappedInside = wrapTextToWidth(
+        chartCtx,
+        text,
+        fontSize,
+        spacing.inside
+    );
+    const wrappedOutside = wrapTextToWidth(
+        chartCtx,
+        text,
+        fontSize,
+        spacing.outside
+    );
+
+    if (
+        (wrappedInside.hasHorizontalOverflow &&
+            !wrappedOutside.hasHorizontalOverflow) ||
+        (wrappedInside.lines.length > 2 &&
+            wrappedOutside.lines.length < wrappedInside.lines.length)
+    ) {
+        writeOuterLeftText(chartCtx, rect, wrappedOutside.lines, fontSize);
+    } else {
+        writeInnerLeftText(chartCtx, rect, wrappedInside.lines, fontSize);
+    }
+}
+
+function writeStats(
+    chartCtx: ChartContext,
+    rect: Rect,
+    text: string[],
+    spacing: Spacing
+) {
+    const fontSize = 14;
+
+    const joinedText = text.join(" / ");
+
+    const multilineWidth = chartCtx.measureTextWidth(text, fontSize);
+    const multilineHeight = measureHeightOfLines(text.length, fontSize);
+    const singleLineWidth = chartCtx.measureTextWidth(joinedText, fontSize);
+
+    // prefer multiline; i.e. only use single line if multiline is too tall
+    // and single line is not too wide
+    const isSingleLineMode =
+        multilineHeight + 2 * textPadding > rect.height &&
+        (singleLineWidth <= spacing.inside ||
+            singleLineWidth <= spacing.outside);
+
+    const textToWrite = isSingleLineMode ? joinedText : text;
+    const textWidth = isSingleLineMode ? singleLineWidth : multilineWidth;
+
+    if (textWidth < spacing.inside || spacing.inside >= spacing.outside) {
+        writeInnerRightText(chartCtx, rect, textToWrite, fontSize);
+    } else {
+        writeOuterRightText(chartCtx, rect, textToWrite, fontSize);
+    }
+}
+
+function writeUserCount(chartCtx: ChartContext, rect: Rect, text: string) {
+    writeCenterText(chartCtx, rect, text, 16);
 }
 
 export function drawChart(
@@ -247,6 +341,7 @@ export function drawChart(
 ) {
     const verticalBarSpacing = height / (data.length - 1 / 4);
     const barHeight = verticalBarSpacing * (3 / 4);
+    const chartCtx = new ChartContext(ctx);
     annotateData(data).forEach((dataPoint, index) => {
         if (dataPoint === "blank") {
             return;
@@ -263,7 +358,7 @@ export function drawChart(
             height: barHeight,
         };
         const color = getColor(dataPoint.absoluteProportion, gradientBase);
-        fillRect(ctx, rect, color);
+        chartCtx.fillRect(rect, color);
 
         const usersLabel = `${dataPoint.count} users`;
         const percentageLabels = [
@@ -278,76 +373,37 @@ export function drawChart(
         ];
 
         const outsideBarSpace = (width - barWidth) / 2 - 2 * textPadding;
-        const stepNameWrappedOutside = wrapTextToWidth(
-            ctx,
-            dataPoint.name,
-            14,
-            outsideBarSpace
-        );
 
-        if (ctx.measureText(usersLabel).width + 2 * textPadding > barWidth) {
-            writeOuterLeftText(ctx, rect, stepNameWrappedOutside.lines, {
-                fontSize: 14,
-                lineHeight: 18,
-            });
-            writeOuterRightText(ctx, rect, [usersLabel, ...percentageLabels], {
-                fontSize: 14,
-                lineHeight: 18,
-            });
+        const usersLabelWidth = chartCtx.measureTextWidth(usersLabel, 16);
+
+        if (usersLabelWidth + 2 * textPadding > barWidth) {
+            // we can't fit the label for the number of users inside the bar,
+            // so we add it to the "stats" section instead
+            const spacing = {
+                inside: (barWidth - betweenTextPadding) / 2 - textPadding,
+                outside: outsideBarSpace,
+            };
+            writeStepName(chartCtx, rect, dataPoint.name, spacing);
+            writeStats(
+                chartCtx,
+                rect,
+                [usersLabel, ...percentageLabels],
+                spacing
+            );
             return;
         }
 
-        writeCenterText(ctx, rect, usersLabel, {
-            fontSize: 16,
-            lineHeight: 20,
-        });
+        writeUserCount(chartCtx, rect, usersLabel);
 
-        const insideBarSpace =
-            (barWidth - measureTextWidth(ctx, usersLabel, 16)) / 2 -
-            textPadding -
-            betweenTextPadding;
-        const stepNameWrappedInside = wrapTextToWidth(
-            ctx,
-            dataPoint.name,
-            14,
-            insideBarSpace
-        );
-        if (
-            (stepNameWrappedInside.hasHorizontalOverflow &&
-                !stepNameWrappedOutside.hasHorizontalOverflow) ||
-            (stepNameWrappedInside.lines.length > 2 &&
-                stepNameWrappedOutside.lines.length <
-                    stepNameWrappedInside.lines.length)
-        ) {
-            writeOuterLeftText(ctx, rect, stepNameWrappedOutside.lines, {
-                fontSize: 14,
-                lineHeight: 18,
-            });
-        } else {
-            writeInnerLeftText(ctx, rect, stepNameWrappedInside.lines, {
-                fontSize: 14,
-                lineHeight: 18,
-            });
-        }
+        const spacing = {
+            inside:
+                (barWidth - usersLabelWidth) / 2 -
+                textPadding -
+                betweenTextPadding,
+            outside: outsideBarSpace,
+        };
 
-        const percentageLabelsWidth = measureTextWidth(
-            ctx,
-            percentageLabels,
-            14
-        );
-        if (
-            percentageLabelsWidth < insideBarSpace ||
-            insideBarSpace >= outsideBarSpace
-        ) {
-            writeInnerRightText(ctx, rect, percentageLabels, {
-                fontSize: 14,
-                lineHeight: 18,
-            });
-        } else {
-            writeOuterRightText(ctx, rect, percentageLabels, {
-                fontSize: 14,
-                lineHeight: 18,
-            });
-        }
+        writeStepName(chartCtx, rect, dataPoint.name, spacing);
+        writeStats(chartCtx, rect, percentageLabels, spacing);
     });
 }
