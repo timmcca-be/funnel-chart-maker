@@ -1,4 +1,4 @@
-# funnel chart maker
+# [funnel chart maker](https://funnel-chart.timmcca.be/)
 
 in the "raw json" section, enter a json array of objects matching this typescript type:
 
